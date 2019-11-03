@@ -27,6 +27,9 @@
     <ClInclude Include="PortfolioGraphics.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Assets\StoneHenge.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="PortfolioGraphics.cpp">
@@ -49,5 +52,6 @@
   <ItemGroup>
     <FxCompile Include="MyVShader.hlsl" />
     <FxCompile Include="MyPShader.hlsl" />
+    <FxCompile Include="MyVMeshShader.hlsl" />
   </ItemGroup>
 </Project>
