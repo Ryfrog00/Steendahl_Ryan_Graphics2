@@ -7,15 +7,24 @@
 #include "MyPShader.csh"
 #include "MyVMeshShader.csh" // don't add a .csh to your project!
 #include "Assets/StoneHenge.h"
+#include "Assets/StoneHenge_Texture.h"
+#include "Assets/wheel.h"
+#include "Assets/DDSTextureLoader.h"
 #include <d3d11.h>
 #pragma comment(lib, "d3d11.lib")
 #include <DirectXMath.h>
+#include <windows.h>
+#include "XTime.h"
 using namespace DirectX;
-
+using namespace std;
 //for init
 ID3D11Device* myDev;
 IDXGISwapChain* mySwap;
 ID3D11DeviceContext* myCon;
+
+XTime timer;
+float speed = 5.0f;
+XMMATRIX camera;
 
 //for drawing
 ID3D11RenderTargetView* myRtv;
@@ -27,11 +36,11 @@ struct MyVertex
 	float rgba[4];
 };
 unsigned int numVerts = 0;
+
 ID3D11Buffer* vBuff;
 ID3D11InputLayout* vLayout;
 ID3D11VertexShader* vShader; //HLSL
 ID3D11PixelShader* pShader; //HLSL
-
 
 ID3D11Buffer* cBuff;//shader vars
 
@@ -39,9 +48,19 @@ ID3D11Buffer* cBuff;//shader vars
 ID3D11Buffer* vBuffMesh; //vertex buffer
 ID3D11Buffer* iBuffMesh; //index buffer
 
+// Z buffer for debth sorting
+ID3D11Texture2D* zBuffer;
+ID3D11DepthStencilView* zBufferView;
+
+// texture variables
+ID3D11Texture2D* diffuseTexture; // what we load our pixel data into
+ID3D11ShaderResourceView* srv;
+ID3D11SamplerState* SS = nullptr;
+
 // mesh vertex shader
 ID3D11VertexShader* vMeshShader; // HLSL
 ID3D11InputLayout* vMeshLayout;
+ID3D11InputLayout* vMeshLayout2;
 // Math stuff
 struct WVP
 {
@@ -88,9 +107,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 	MSG msg;
 
+	camera = XMMatrixInverse(nullptr, XMMatrixLookAtLH({ 0,0,0 }, { 1,0,0 }, { 0,1,0 }));
 	// Main message loop:
 	while (true)
 	{
+		timer.Signal();
 		PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
 		if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
 		{
@@ -104,11 +125,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		float color[] = { 0.0f, 1.0f, 1.0f, 1.0f };
 		myCon->ClearRenderTargetView(myRtv, color);
 
+		myCon->ClearDepthStencilView(zBufferView, D3D11_CLEAR_DEPTH, 1, 0);
+		
 		//Setup the pipeline
-
+		
 		//output manager
+		myCon->PSSetSamplers(0, 1, &SS);
 		ID3D11RenderTargetView* tempRTV[] = { myRtv };
-		myCon->OMSetRenderTargets(1, tempRTV, nullptr);
+		myCon->OMSetRenderTargets(1, tempRTV, zBufferView);
 		//rasterizer
 		myCon->RSSetViewports(1, &myPort);
 		//input assembler
@@ -129,15 +153,89 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			//make into a pyramid (more verts)  -  Check
 
 			//make a world view & projection matrix
-			static float rot = 0; rot += 0.01f;
+			static float rot = 0; rot += 0.001f;
 			XMMATRIX temp = XMMatrixIdentity();
-			temp = XMMatrixTranslation(0, 0, 2);
+			temp = XMMatrixTranslation(3, 2, -5);
 			XMMATRIX temp2 = XMMatrixRotationY(rot);
 			temp = XMMatrixMultiply(temp2, temp);
 			XMStoreFloat4x4(&MyMatricies.wMatrix, temp);
+
+			float dTime = timer.Delta();
+			//view movement
+				//W (Forward)
+			if (GetAsyncKeyState(0x57))
+			{
+				XMMATRIX tmp = XMMatrixTranslation(0, 0, speed * dTime * 3);
+				camera = XMMatrixMultiply(tmp, camera);
+			}
+				//S (Backward)
+			if (GetAsyncKeyState(0x53))
+			{
+				XMMATRIX tmp = XMMatrixTranslation(0, 0, -speed * dTime* 3);
+				camera = XMMatrixMultiply(tmp, camera);
+			}
+				//A (Left)
+			if (GetAsyncKeyState(0x41))
+			{
+				XMMATRIX tmp = XMMatrixTranslation(-speed * dTime * 3, 0, 0);
+				camera = XMMatrixMultiply(tmp, camera);
+			}
+				//D (Right)
+			if (GetAsyncKeyState(0x44))
+			{
+				XMMATRIX tmp = XMMatrixTranslation(speed * dTime * 3, 0, 0);
+				camera = XMMatrixMultiply(tmp, camera);
+			}
+				//Spacebar (up)
+			if (GetAsyncKeyState(VK_SPACE))
+			{
+				XMMATRIX tmp = XMMatrixTranslation(0, speed * dTime * 3, 0);
+				camera = XMMatrixMultiply(tmp, camera);
+			}
+				//Left Shift (Down)
+			if (GetAsyncKeyState(VK_LSHIFT))
+			{
+				XMMATRIX tmp = XMMatrixTranslation(0, -speed * dTime * 3, 0);
+				camera = XMMatrixMultiply(tmp, camera);
+			}
+				//Up Arrow (Look Up)
+			if (GetAsyncKeyState(VK_UP))
+			{
+				XMVECTOR pos = camera.r[3];
+				camera.r[3] = XMVectorSet(0, 0, 0, 1);
+				XMMATRIX rotX = XMMatrixRotationX(-speed * dTime);
+				camera = XMMatrixMultiply(rotX, camera);
+				camera.r[3] = pos;
+			}
+				//Down Arrow (Look Down)
+			if (GetAsyncKeyState(VK_DOWN))
+			{
+				XMVECTOR pos = camera.r[3];
+				camera.r[3] = XMVectorSet(0, 0, 0, 1);
+				XMMATRIX rotX = XMMatrixRotationX(speed * dTime);
+				camera = XMMatrixMultiply(rotX, camera);
+				camera.r[3] = pos;
+			}
+			//Left Arrow (Look Left)
+			if (GetAsyncKeyState(VK_LEFT))
+			{
+				XMVECTOR pos = camera.r[3];
+				camera.r[3] = XMVectorSet(0, 0, 0, 1);
+				XMMATRIX rotY = XMMatrixRotationY(-speed * dTime);
+				camera = XMMatrixMultiply(camera, rotY);
+				camera.r[3] = pos;
+			}
+			//Right Arrow (Look Right)
+			if (GetAsyncKeyState(VK_RIGHT))
+			{
+				XMVECTOR pos = camera.r[3];
+				camera.r[3] = XMVectorSet(0, 0, 0, 1);
+				XMMATRIX rotY = XMMatrixRotationY(speed * dTime);
+				camera = XMMatrixMultiply(camera, rotY);
+				camera.r[3] = pos;
+			}
 			//view
-			temp = XMMatrixLookAtLH({ 2,2,-1 }, { 0,0,1 }, { 0,1,0 });
-			XMStoreFloat4x4(&MyMatricies.vMatrix, temp);
+			XMStoreFloat4x4(&MyMatricies.vMatrix, XMMatrixInverse(nullptr, camera));
 			//projection
 			temp = XMMatrixPerspectiveFovLH(3.14f / 2.0f, aspectRatio, 0.1f, 1000);
 			XMStoreFloat4x4(&MyMatricies.pMatrix, temp);
@@ -149,7 +247,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			//memcpy(gpuBuffer.pData, &MyMatricies, sizeof(WVP));
 			myCon->Unmap(cBuff, 0);
 
-		
 			// Apply matrix math in Vertex Shader  -  check
 			// connect constant buffer to pipeline  -  check
 			// remember by default HLSL matricies are COLUMN MAJOR
@@ -174,11 +271,23 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			myCon->IASetIndexBuffer(iBuffMesh, DXGI_FORMAT_R32_UINT, 0);
 			myCon->VSSetShader(vMeshShader, 0, 0);
 			myCon->IASetInputLayout(vMeshLayout);
-			//draw it
-			myCon->DrawIndexed(2532, 0, 0);
+
+			ID3D11ShaderResourceView* texViews[] = { srv };
+			myCon->PSSetShaderResources(0, 1, texViews);
+			
+		
 
 
+			// modify world matrix before drawing next thing
+			temp = XMMatrixIdentity();
+			XMStoreFloat4x4(&MyMatricies.wMatrix, temp);
+			// send it to the CARD
+			hr = myCon->Map(cBuff, 0, D3D11_MAP_WRITE_DISCARD, 0, &gpuBuffer);
+			*((WVP*)(gpuBuffer.pData)) = MyMatricies;
+			//memcpy(gpuBuffer.pData, &MyMatricies, sizeof(WVP));
+			myCon->Unmap(cBuff, 0);
 
+			myCon->DrawIndexed(sizeof(StoneHenge_indicies) / sizeof(unsigned int), 0, 0);
 		
 		mySwap->Present(0, 0);  //can limit framerate and synch with these params
 	}
@@ -258,7 +367,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	swap.BufferCount = 2;
 	swap.OutputWindow = hWnd;
 	swap.Windowed = true;
-	swap.SwapEffect = DXGI_SWAP_EFFECT_DISCARD;
+	swap.SwapEffect = DXGI_SWAP_EFFECT_FLIP_DISCARD;
 	swap.BufferDesc.Format = DXGI_FORMAT_R8G8B8A8_UNORM;
 	swap.BufferDesc.Width = myWinR.right - myWinR.left;
 	swap.BufferDesc.Height = myWinR.bottom - myWinR.top;
@@ -374,6 +483,30 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	};
 
 	hr = myDev->CreateInputLayout(meshInputDesc, 3, MyVMeshShader, sizeof(MyVMeshShader), &vMeshLayout);
+
+
+	
+	// create Z buffer & view
+	D3D11_TEXTURE2D_DESC zDesc;
+	ZeroMemory(&zDesc, sizeof(zDesc));
+	zDesc.ArraySize = 1;
+	zDesc.BindFlags = D3D11_BIND_DEPTH_STENCIL;
+	zDesc.Width = swap.BufferDesc.Width;
+	zDesc.Height = swap.BufferDesc.Height;
+	zDesc.Format = DXGI_FORMAT_D32_FLOAT;
+	zDesc.Usage = D3D11_USAGE_DEFAULT;
+	zDesc.MipLevels = 1;
+	zDesc.SampleDesc.Count = 1;
+	
+	hr = myDev->CreateTexture2D(&zDesc, nullptr, &zBuffer);
+	hr = CreateDDSTextureFromFile(myDev, L"Assets/StoneHenge.dds", nullptr, &srv);
+
+	CD3D11_SAMPLER_DESC sd = CD3D11_SAMPLER_DESC(CD3D11_DEFAULT());
+	
+	myDev->CreateSamplerState(&sd, &SS);
+	myDev->CreateDepthStencilView(zBuffer, nullptr, &zBufferView);
+
+
 	
 	return TRUE;
 }

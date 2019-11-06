@@ -158,19 +158,26 @@
     </Link>
   </ItemDefinitionGroup>
   <ItemGroup>
+    <ClInclude Include="Assets\DDSTextureLoader.h" />
     <ClInclude Include="Assets\StoneHenge.h" />
+    <ClInclude Include="Assets\StoneHenge_Texture.h" />
+    <ClInclude Include="Assets\wheel.h" />
     <ClInclude Include="framework.h" />
     <ClInclude Include="PortfolioGraphics.h" />
     <ClInclude Include="Resource.h" />
     <ClInclude Include="targetver.h" />
+    <ClInclude Include="XTime.h" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="Assets\DDSTextureLoader.cpp" />
     <ClCompile Include="PortfolioGraphics.cpp" />
+    <ClCompile Include="XTime.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ResourceCompile Include="PortfolioGraphics.rc" />
   </ItemGroup>
   <ItemGroup>
+    <Image Include="Assets\StoneHenge.tga" />
     <Image Include="PortfolioGraphics.ico" />
     <Image Include="small.ico" />
   </ItemGroup>

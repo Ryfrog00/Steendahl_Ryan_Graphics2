@@ -30,9 +30,27 @@
     <ClInclude Include="Assets\StoneHenge.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Assets\wheel.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Assets\StoneHenge_Texture.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Assets\DDSTextureLoader.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="XTime.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="PortfolioGraphics.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="Assets\DDSTextureLoader.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="XTime.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
   </ItemGroup>
@@ -48,6 +66,7 @@
     <Image Include="PortfolioGraphics.ico">
       <Filter>Resource Files</Filter>
     </Image>
+    <Image Include="Assets\StoneHenge.tga" />
   </ItemGroup>
   <ItemGroup>
     <FxCompile Include="MyVShader.hlsl" />
