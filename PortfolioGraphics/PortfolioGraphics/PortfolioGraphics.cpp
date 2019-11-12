@@ -24,6 +24,9 @@ ID3D11DeviceContext* myCon;
 
 XTime timer;
 float speed = 5.0f;
+float zoom = 1.0f;
+float zNear = 0.1f;
+float zFar = 1000.0f;
 XMMATRIX camera;
 
 //for drawing
@@ -111,7 +114,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	// Main message loop:
 	while (true)
 	{
-		timer.Signal();
+		timer.Signal(); 
 		PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
 		if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
 		{
@@ -161,6 +164,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			XMStoreFloat4x4(&MyMatricies.wMatrix, temp);
 
 			float dTime = timer.Delta();
+		{
+			
 			//view movement
 				//W (Forward)
 			if (GetAsyncKeyState(0x57))
@@ -234,10 +239,47 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				camera = XMMatrixMultiply(camera, rotY);
 				camera.r[3] = pos;
 			}
+			//Minus (zoom out)
+			if (GetAsyncKeyState(VK_OEM_MINUS))
+			{
+				if(zoom > 0.9f)
+					zoom -= 0.01f;
+			}
+			//Plus (zoom in)
+			if (GetAsyncKeyState(VK_OEM_PLUS))
+			{
+				if (zoom < 5.0f)
+					zoom += 0.01f;
+			}
+			//{ (near plane closer)
+			if (GetAsyncKeyState(VK_OEM_4))
+			{
+				if (zNear > 0.1f)
+					zNear -= 0.1f;
+			}
+			//} (near plane further)
+			if (GetAsyncKeyState(VK_OEM_6))
+			{
+				if (zNear <= zFar)
+					zNear += 0.1f;
+			}
+			//: (far plane closer)
+			if (GetAsyncKeyState(VK_OEM_1))
+			{
+				if (zFar >= zNear)
+					zFar -= 0.1f;
+			}
+			//' (far plane further)
+			if (GetAsyncKeyState(VK_OEM_7))
+			{
+				if (zFar < 10000.0f)
+					zFar += 0.1f;
+			}
+		}
 			//view
 			XMStoreFloat4x4(&MyMatricies.vMatrix, XMMatrixInverse(nullptr, camera));
 			//projection
-			temp = XMMatrixPerspectiveFovLH(3.14f / 2.0f, aspectRatio, 0.1f, 1000);
+			temp = XMMatrixPerspectiveFovLH(3.14f / (2.0f * zoom), aspectRatio, zNear, zFar);
 			XMStoreFloat4x4(&MyMatricies.pMatrix, temp);
 			//upload those matricies to the video card
 				//create and update a constant buffer (move variables from c++ to shaders)
@@ -499,7 +541,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	zDesc.SampleDesc.Count = 1;
 	
 	hr = myDev->CreateTexture2D(&zDesc, nullptr, &zBuffer);
-	hr = CreateDDSTextureFromFile(myDev, L"Assets/StoneHenge.dds", nullptr, &srv);
+	hr = CreateDDSTextureFromFile(myDev, L"Assets/Stonehenge.dds", nullptr, &srv);
 
 	CD3D11_SAMPLER_DESC sd = CD3D11_SAMPLER_DESC(CD3D11_DEFAULT());
 	
