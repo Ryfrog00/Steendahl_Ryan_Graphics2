@@ -42,6 +42,9 @@
     <ClInclude Include="XTime.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Assets\skyBox.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="PortfolioGraphics.cpp">
@@ -72,5 +75,7 @@
     <FxCompile Include="MyVShader.hlsl" />
     <FxCompile Include="MyPShader.hlsl" />
     <FxCompile Include="MyVMeshShader.hlsl" />
+    <FxCompile Include="MyVSkyShader.hlsl" />
+    <FxCompile Include="MyPSkyShader.hlsl" />
   </ItemGroup>
 </Project>

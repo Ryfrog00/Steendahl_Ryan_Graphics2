@@ -6,9 +6,12 @@
 #include "MyVShader.csh"
 #include "MyPShader.csh"
 #include "MyVMeshShader.csh" // don't add a .csh to your project!
+#include "MyVSkyShader.csh"
+#include "MyPSkyShader.csh"
 #include "Assets/StoneHenge.h"
 #include "Assets/StoneHenge_Texture.h"
 #include "Assets/wheel.h"
+#include "Assets/skyBox.h"
 #include "Assets/DDSTextureLoader.h"
 #include <d3d11.h>
 #pragma comment(lib, "d3d11.lib")
@@ -64,6 +67,16 @@ ID3D11SamplerState* SS = nullptr;
 ID3D11VertexShader* vMeshShader; // HLSL
 ID3D11InputLayout* vMeshLayout;
 ID3D11InputLayout* vMeshLayout2;
+
+ID3D11Buffer* skyVBuff;
+ID3D11Buffer* skyIBuff;
+ID3D11VertexShader* skyVShader;
+ID3D11PixelShader* skyPShader;
+ID3D11Texture2D* skyTex;
+ID3D11ShaderResourceView* skySRV;
+//ID3D11InputLayout skyLayout;
+
+
 // Math stuff
 struct WVP
 {
@@ -94,7 +107,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	UNREFERENCED_PARAMETER(lpCmdLine);
 
 	// TODO: Place code here.
-
+	
 	// Initialize global strings
 	LoadStringW(hInstance, IDS_APP_TITLE, szTitle, MAX_LOADSTRING);
 	LoadStringW(hInstance, IDC_PORTFOLIOGRAPHICS, szWindowClass, MAX_LOADSTRING);
@@ -139,16 +152,18 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		//rasterizer
 		myCon->RSSetViewports(1, &myPort);
 		//input assembler
-		myCon->IASetInputLayout(vLayout);
+		//myCon->IASetInputLayout(vLayout);
 		ID3D11Buffer* tempVB[] = {vBuff};
-		UINT strides[] = {sizeof(MyVertex)};
+		/*UINT strides[] = {sizeof(MyVertex)};
 		UINT offsets[] = {0};
-		myCon->IASetVertexBuffers(0, 1, tempVB, strides, offsets);
+		myCon->IASetVertexBuffers(0, 1, tempVB, strides, offsets);*/
 		myCon->IASetPrimitiveTopology((D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST));
+		ID3D11Buffer* constants[] = { cBuff };
+		myCon->VSSetConstantBuffers(0, 1, constants);
 		//Vertex Shader Stage
-		myCon->VSSetShader(vShader, 0, 0);
-		//Pixel Shader Stage
-		myCon->PSSetShader(pShader, 0, 0);
+		//myCon->VSSetShader(vShader, 0, 0);
+		////Pixel Shader Stage
+		//myCon->PSSetShader(pShader, 0, 0);
 		
 		
 		// Try and make the triangle 3d  -  Check
@@ -156,7 +171,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			//make into a pyramid (more verts)  -  Check
 
 			//make a world view & projection matrix
-			static float rot = 0; rot += 0.001f;
+			static float rot = 0; //rot += 0.001f;
 			XMMATRIX temp = XMMatrixIdentity();
 			temp = XMMatrixTranslation(3, 2, -5);
 			XMMATRIX temp2 = XMMatrixRotationY(rot);
@@ -281,6 +296,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			//projection
 			temp = XMMatrixPerspectiveFovLH(3.14f / (2.0f * zoom), aspectRatio, zNear, zFar);
 			XMStoreFloat4x4(&MyMatricies.pMatrix, temp);
+
+		
 			//upload those matricies to the video card
 				//create and update a constant buffer (move variables from c++ to shaders)
 			D3D11_MAPPED_SUBRESOURCE gpuBuffer;
@@ -288,15 +305,38 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			*((WVP*)(gpuBuffer.pData)) = MyMatricies;
 			//memcpy(gpuBuffer.pData, &MyMatricies, sizeof(WVP));
 			myCon->Unmap(cBuff, 0);
+		
+			UINT mesh_sky_strides[] = { sizeof(_OBJ_VERT_) };
+			UINT mesh_sky_offsets[] = { 0 };
+			ID3D11Buffer* skyMeshVB[] = { skyVBuff };
+			myCon->IASetVertexBuffers(0, 1, skyMeshVB, mesh_sky_strides, mesh_sky_offsets);
+			myCon->IASetIndexBuffer(skyIBuff, DXGI_FORMAT_R32_UINT, 0);
+			myCon->VSSetShader(skyVShader, 0, 0);
+			myCon->PSSetShader(skyPShader, 0, 0);
+			myCon->IASetInputLayout(vMeshLayout);
 
+
+			temp = XMMatrixIdentity();
+			XMVECTOR camPos = camera.r[3];
+		
+		    temp = XMMatrixTranslation(XMVectorGetX(camPos), XMVectorGetY(camPos), XMVectorGetZ(camPos));
+			XMStoreFloat4x4(&MyMatricies.wMatrix, temp);
+
+			myCon->Map(cBuff, 0, D3D11_MAP_WRITE_DISCARD, 0, &gpuBuffer);
+			*((WVP*)(gpuBuffer.pData)) = MyMatricies;
+			myCon->Unmap(cBuff, 0);
+			ID3D11ShaderResourceView* texSkyViews[] = { skySRV };
+			myCon->PSSetShaderResources(0, 1, texSkyViews);
+			myCon->DrawIndexed(sizeof(skyBox_indicies), 0, 0);
+
+			myCon->ClearDepthStencilView(zBufferView, D3D11_CLEAR_DEPTH, 1, 0);
 			// Apply matrix math in Vertex Shader  -  check
 			// connect constant buffer to pipeline  -  check
 			// remember by default HLSL matricies are COLUMN MAJOR
-			ID3D11Buffer* constants[] = { cBuff };
-			myCon->VSSetConstantBuffers(0, 1, constants);
+			
 		
 			// Draw?
-			myCon->Draw(numVerts, 0);
+			//myCon->Draw(numVerts, 0);
 
 			//immediate context
 
@@ -312,6 +352,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			myCon->IASetVertexBuffers(0, 1, meshVB, mesh_strides, mesh_offsets);
 			myCon->IASetIndexBuffer(iBuffMesh, DXGI_FORMAT_R32_UINT, 0);
 			myCon->VSSetShader(vMeshShader, 0, 0);
+			myCon->PSSetShader(pShader, 0, 0);
 			myCon->IASetInputLayout(vMeshLayout);
 
 			ID3D11ShaderResourceView* texViews[] = { srv };
@@ -329,11 +370,11 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			//memcpy(gpuBuffer.pData, &MyMatricies, sizeof(WVP));
 			myCon->Unmap(cBuff, 0);
 
-			myCon->DrawIndexed(sizeof(StoneHenge_indicies) / sizeof(unsigned int), 0, 0);
-		
+			myCon->DrawIndexedInstanced(sizeof(StoneHenge_indicies), 2, 0, 0, 0);
 		mySwap->Present(0, 0);  //can limit framerate and synch with these params
 	}
 	//release all our D3D11 interfaces
+	
 	myRtv->Release();
 	vBuff->Release();
 	myCon->Release();
@@ -483,7 +524,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	};
 	
 	hr = myDev->CreateInputLayout(ieDesc, 2, MyVShader, sizeof(MyVShader), &vLayout);
-
+	
 	// create constant buffer
 	ZeroMemory(&bDesc, sizeof(bDesc));
 
@@ -509,12 +550,31 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hr = myDev->CreateBuffer(&bDesc, &subData, &vBuffMesh); // vertex buffer
 	// index buffer mesh
 	bDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	bDesc.ByteWidth = sizeof(StoneHenge_indicies);
+	bDesc.ByteWidth = sizeof(StoneHenge_indicies) * 2;
 	subData.pSysMem = StoneHenge_indicies;
 	hr = myDev->CreateBuffer(&bDesc, &subData, &iBuffMesh);
-
-	// load our new mesh shader
 	hr = myDev->CreateVertexShader(MyVMeshShader, sizeof(MyVMeshShader), nullptr, &vMeshShader);
+
+	
+	bDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bDesc.ByteWidth = sizeof(skyBox_data);
+	bDesc.CPUAccessFlags = 0;
+	bDesc.MiscFlags = 0;
+	bDesc.StructureByteStride = 0;
+	bDesc.Usage = D3D11_USAGE_IMMUTABLE;
+
+	subData.pSysMem = skyBox_data;
+	hr = myDev->CreateBuffer(&bDesc, &subData, &skyVBuff); // vertex buffer
+	// index buffer mesh
+	bDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	bDesc.ByteWidth = sizeof(skyBox_indicies);
+	subData.pSysMem = skyBox_indicies;
+	hr = myDev->CreateBuffer(&bDesc, &subData, &skyIBuff);
+	hr = myDev->CreateVertexShader(MyVSkyShader, sizeof(MyVSkyShader), nullptr, &skyVShader);
+	hr = myDev->CreatePixelShader(MyPSkyShader, sizeof(MyPSkyShader), nullptr, &skyPShader);
+	hr = CreateDDSTextureFromFile(myDev, L"Assets/SkyboxOcean.dds", nullptr, &skySRV);
+	// load our new mesh shader
+	
 
 	// make matching input layout for mesh vertex
 	D3D11_INPUT_ELEMENT_DESC meshInputDesc[] =
@@ -542,7 +602,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	
 	hr = myDev->CreateTexture2D(&zDesc, nullptr, &zBuffer);
 	hr = CreateDDSTextureFromFile(myDev, L"Assets/Stonehenge.dds", nullptr, &srv);
-
+	
 	CD3D11_SAMPLER_DESC sd = CD3D11_SAMPLER_DESC(CD3D11_DEFAULT());
 	
 	myDev->CreateSamplerState(&sd, &SS);

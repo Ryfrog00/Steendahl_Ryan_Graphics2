@@ -28,8 +28,11 @@ cbuffer SHADER_VARS : register(b0)
 	float4x4 projectionMatrix;
 };
 
-OutputVertex main(InputVertex input)
+OutputVertex main(InputVertex input, uint instanceId : SV_instanceID)
 {
+	float3 offset = { 50.0f, 1.0f, 50.0f };
+
+	input.xyz += offset * instanceId;
 	
 	OutputVertex output = (OutputVertex)0;
 	output.xyzw = float4(input.xyz, 1);
@@ -38,10 +41,11 @@ OutputVertex main(InputVertex input)
 	output.uv = input.uvw;
 	//output.rgba.rgb = input.nrm;
 	// Do math here (shader intrinsics)
-
 	output.xyzw = mul(worldMatrix, output.xyzw);
 	output.xyzw = mul(viewMatrix, output.xyzw);
 	output.xyzw = mul(projectionMatrix, output.xyzw);
+
+
 	// don't do perspective divide
 
 	return output;

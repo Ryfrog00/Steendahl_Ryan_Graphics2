@@ -27,7 +27,7 @@ float4 main(float4 posH : SV_POSITION, float4 icolor : COLOR, float3 uvs : UV, f
 	float outterConeRatio = 0.25f;
 	float spotAttenuation = 1.0f - clamp(((innerConeRatio - spotSurfaceRatio) / (innerConeRatio - outterConeRatio)), 0, 1);
 	float4 spotLightColor = { 0.0f, 0.0f, 1.0f, 1.0f };
-
+	
 
 	//directional lights
 	float3 lightDir = {-1.0f, 0.5f, 0.5f};
