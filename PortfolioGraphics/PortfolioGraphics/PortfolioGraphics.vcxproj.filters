@@ -45,6 +45,18 @@
     <ClInclude Include="Assets\skyBox.h">
       <Filter>Header Files</Filter>
     </ClInclude>
+    <ClInclude Include="Assets\Island.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Assets\PalmTree.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Assets\PlaneWater.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="Assets\Car.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="PortfolioGraphics.cpp">
@@ -77,5 +89,8 @@
     <FxCompile Include="MyVMeshShader.hlsl" />
     <FxCompile Include="MyVSkyShader.hlsl" />
     <FxCompile Include="MyPSkyShader.hlsl" />
+    <FxCompile Include="VertexShader.hlsl" />
+    <FxCompile Include="PixelShader.hlsl" />
+    <FxCompile Include="TreeVertexShader1.hlsl" />
   </ItemGroup>
 </Project>

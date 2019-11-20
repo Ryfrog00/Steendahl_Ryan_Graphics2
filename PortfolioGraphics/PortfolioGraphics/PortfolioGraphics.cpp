@@ -8,10 +8,16 @@
 #include "MyVMeshShader.csh" // don't add a .csh to your project!
 #include "MyVSkyShader.csh"
 #include "MyPSkyShader.csh"
+#include "VertexShader.csh"
+#include "PixelShader.csh"
 #include "Assets/StoneHenge.h"
 #include "Assets/StoneHenge_Texture.h"
-#include "Assets/wheel.h"
+#include "Assets/Island.h"
+#include "Assets/PalmTree.h"
+#include "Assets/PlaneWater.h"
 #include "Assets/skyBox.h"
+#include "TreeVertexShader1.csh"
+#include "Assets/Car.h"
 #include "Assets/DDSTextureLoader.h"
 #include <d3d11.h>
 #pragma comment(lib, "d3d11.lib")
@@ -30,11 +36,13 @@ float speed = 5.0f;
 float zoom = 1.0f;
 float zNear = 0.1f;
 float zFar = 1000.0f;
+bool LookFollow = false;
+XMMATRIX triLoc = XMMatrixIdentity();
 XMMATRIX camera;
 
 //for drawing
 ID3D11RenderTargetView* myRtv;
-D3D11_VIEWPORT myPort;
+D3D11_VIEWPORT myPort[2];
 float aspectRatio = 1;
 struct MyVertex
 {
@@ -72,17 +80,35 @@ ID3D11Buffer* skyVBuff;
 ID3D11Buffer* skyIBuff;
 ID3D11VertexShader* skyVShader;
 ID3D11PixelShader* skyPShader;
-ID3D11Texture2D* skyTex;
+//ID3D11Texture2D* skyTex;
 ID3D11ShaderResourceView* skySRV;
 //ID3D11InputLayout skyLayout;
+ID3D11Buffer* islandVBuff;
+ID3D11Buffer* islandIBuff;
+ID3D11VertexShader* islandVShader;
+ID3D11PixelShader* islandPShader;
+ID3D11ShaderResourceView* islandSRV;
 
+ID3D11Buffer* treeVBuff;
+ID3D11Buffer* treeIBuff;
+ID3D11VertexShader* treeVShader;
+ID3D11PixelShader* treePShader;
+ID3D11ShaderResourceView* treeSRV;
+ID3D11ShaderResourceView* SecondSSRV;
 
+ID3D11Buffer* carVBuff;
+ID3D11Buffer* carIBuff;
+ID3D11VertexShader* carVShader;
+ID3D11PixelShader* carPShader;
+ID3D11ShaderResourceView* carSRV;
 // Math stuff
 struct WVP
 {
 	XMFLOAT4X4 wMatrix; // storage type
 	XMFLOAT4X4 vMatrix;
 	XMFLOAT4X4 pMatrix;
+	XMFLOAT4 time;
+	XMFLOAT4 camPos;
 }MyMatricies;
 
 #define MAX_LOADSTRING 100
@@ -120,14 +146,16 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	}
 
 	HACCEL hAccelTable = LoadAccelerators(hInstance, MAKEINTRESOURCE(IDC_PORTFOLIOGRAPHICS));
-
+	static float myTimeStupid = 0.0f;
 	MSG msg;
-
-	camera = XMMatrixInverse(nullptr, XMMatrixLookAtLH({ 0,0,0 }, { 1,0,0 }, { 0,1,0 }));
+	if(!LookFollow)
+		camera = XMMatrixInverse(nullptr, XMMatrixLookAtLH({ 0,0,0 }, { 1,0,0 }, { 0,1,0 }));
 	// Main message loop:
 	while (true)
 	{
 		timer.Signal(); 
+		myTimeStupid += 0.0005;
+		MyMatricies.time = { 0,0,0,myTimeStupid };
 		PeekMessage(&msg, nullptr, 0, 0, PM_REMOVE);
 		if (!TranslateAccelerator(msg.hwnd, hAccelTable, &msg))
 		{
@@ -150,7 +178,7 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 		ID3D11RenderTargetView* tempRTV[] = { myRtv };
 		myCon->OMSetRenderTargets(1, tempRTV, zBufferView);
 		//rasterizer
-		myCon->RSSetViewports(1, &myPort);
+		myCon->RSSetViewports(1, &myPort[0]);
 		//input assembler
 		//myCon->IASetInputLayout(vLayout);
 		ID3D11Buffer* tempVB[] = {vBuff};
@@ -171,14 +199,17 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			//make into a pyramid (more verts)  -  Check
 
 			//make a world view & projection matrix
-			static float rot = 0; //rot += 0.001f;
+			static float rot = 0; rot += 0.001f;
 			XMMATRIX temp = XMMatrixIdentity();
 			temp = XMMatrixTranslation(3, 2, -5);
 			XMMATRIX temp2 = XMMatrixRotationY(rot);
-			temp = XMMatrixMultiply(temp2, temp);
+			temp = XMMatrixMultiply(temp, temp2);
 			XMStoreFloat4x4(&MyMatricies.wMatrix, temp);
 
 			float dTime = timer.Delta();
+			//////////////////////
+			//Movement of Camera//
+			//////////////////////
 		{
 			
 			//view movement
@@ -290,6 +321,14 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 				if (zFar < 10000.0f)
 					zFar += 0.1f;
 			}
+			if (GetAsyncKeyState(VK_F3))
+			{
+				if (LookFollow == true)
+					LookFollow = false;
+				else
+					LookFollow = true;
+				Sleep(100);
+			}
 		}
 			//view
 			XMStoreFloat4x4(&MyMatricies.vMatrix, XMMatrixInverse(nullptr, camera));
@@ -318,7 +357,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 
 			temp = XMMatrixIdentity();
 			XMVECTOR camPos = camera.r[3];
-		
+			MyMatricies.camPos = {XMVectorGetX(camPos), XMVectorGetY(camPos), XMVectorGetZ(camPos), 1.0f};
+
 		    temp = XMMatrixTranslation(XMVectorGetX(camPos), XMVectorGetY(camPos), XMVectorGetZ(camPos));
 			XMStoreFloat4x4(&MyMatricies.wMatrix, temp);
 
@@ -327,16 +367,42 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			myCon->Unmap(cBuff, 0);
 			ID3D11ShaderResourceView* texSkyViews[] = { skySRV };
 			myCon->PSSetShaderResources(0, 1, texSkyViews);
-			myCon->DrawIndexed(sizeof(skyBox_indicies), 0, 0);
+			myCon->DrawIndexed(ARRAYSIZE(skyBox_indicies), 0, 0);
 
 			myCon->ClearDepthStencilView(zBufferView, D3D11_CLEAR_DEPTH, 1, 0);
+			myCon->RSSetViewports(1, &myPort[1]);
+			myCon->PSSetShaderResources(0, 1, texSkyViews);
+			myCon->DrawIndexed(ARRAYSIZE(skyBox_indicies), 0, 0);
+
+			myCon->ClearDepthStencilView(zBufferView, D3D11_CLEAR_DEPTH, 1, 0);
+			myCon->RSSetViewports(1, &myPort[0]);
 			// Apply matrix math in Vertex Shader  -  check
 			// connect constant buffer to pipeline  -  check
 			// remember by default HLSL matricies are COLUMN MAJOR
 			
-		
+			myCon->IASetInputLayout(vLayout);
+			UINT strides[] = {sizeof(MyVertex)};
+			UINT offsets[] = {0};
+			myCon->IASetVertexBuffers(0, 1, tempVB, strides, offsets);
+			myCon->VSSetConstantBuffers(0, 1, constants);
+			//Vertex Shader Stage
+			myCon->VSSetShader(vShader, 0, 0);
+			//Pixel Shader Stage
+			myCon->PSSetShader(pShader, 0, 0);
+			rot += 0.001f;
+			temp = XMMatrixIdentity();
+			temp = XMMatrixTranslation(3, 2, -5);
+			temp2 = XMMatrixRotationY(rot);
+			temp = XMMatrixMultiply(temp, temp2);
+			triLoc = temp;
+			XMStoreFloat4x4(&MyMatricies.wMatrix, temp);
+			myCon->Map(cBuff, 0, D3D11_MAP_WRITE_DISCARD, 0, &gpuBuffer);
+			*((WVP*)(gpuBuffer.pData)) = MyMatricies;
+			myCon->Unmap(cBuff, 0);
+			ID3D11ShaderResourceView* texViews[] = { srv };
+			myCon->PSSetShaderResources(0, 1, texViews);
 			// Draw?
-			//myCon->Draw(numVerts, 0);
+			myCon->Draw(numVerts, 0);
 
 			//immediate context
 
@@ -355,7 +421,6 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			myCon->PSSetShader(pShader, 0, 0);
 			myCon->IASetInputLayout(vMeshLayout);
 
-			ID3D11ShaderResourceView* texViews[] = { srv };
 			myCon->PSSetShaderResources(0, 1, texViews);
 			
 		
@@ -370,7 +435,109 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 			//memcpy(gpuBuffer.pData, &MyMatricies, sizeof(WVP));
 			myCon->Unmap(cBuff, 0);
 
-			myCon->DrawIndexedInstanced(sizeof(StoneHenge_indicies), 2, 0, 0, 0);
+			myCon->DrawIndexedInstanced(ARRAYSIZE(PlaneWater_indicies), 1, 0, 0, 0);
+
+
+
+
+
+			UINT strides2[] = { sizeof(_OBJ_VERT_) };
+			UINT offsets2[] = { 0 };
+			ID3D11ShaderResourceView* islandViews[] = { islandSRV };
+			myCon->PSSetShaderResources(0, 1, islandViews);
+			ID3D11Buffer* islandVB[] = { islandVBuff };
+			myCon->IASetVertexBuffers(0, 1, islandVB, strides2, offsets2);
+			myCon->IASetIndexBuffer(islandIBuff, DXGI_FORMAT_R32_UINT, 0);
+			myCon->VSSetShader(islandVShader, 0, 0);
+			myCon->PSSetShader(islandPShader, 0, 0);
+			myCon->IASetInputLayout(vMeshLayout);
+			// modify world matrix before drawing next thing
+			temp = XMMatrixIdentity();
+			XMStoreFloat4x4(&MyMatricies.wMatrix, temp);
+			// send it to the CARD
+			hr = myCon->Map(cBuff, 0, D3D11_MAP_WRITE_DISCARD, 0, &gpuBuffer);
+			*((WVP*)(gpuBuffer.pData)) = MyMatricies;
+			//memcpy(gpuBuffer.pData, &MyMatricies, sizeof(WVP));
+			myCon->Unmap(cBuff, 0);
+
+
+			myCon->DrawIndexedInstanced(ARRAYSIZE(Island_indicies), 2, 0, 0, 0);
+
+
+			UINT strides3[] = { sizeof(_OBJ_VERT_) };
+			UINT offsets3[] = { 0 };
+			ID3D11ShaderResourceView* treeViews[] = { treeSRV };
+			myCon->PSSetShaderResources(0, 1, treeViews);
+			ID3D11Buffer* treeVB[] = { treeVBuff };
+			myCon->IASetVertexBuffers(0, 1, treeVB, strides3, offsets3);
+			myCon->IASetIndexBuffer(treeIBuff, DXGI_FORMAT_R32_UINT, 0);
+			myCon->VSSetShader(treeVShader, 0, 0);
+			myCon->PSSetShader(treePShader, 0, 0);
+			myCon->IASetInputLayout(vMeshLayout);
+			// modify world matrix before drawing next thing
+			temp = XMMatrixIdentity();
+			XMStoreFloat4x4(&MyMatricies.wMatrix, temp);
+			// send it to the CARD
+			hr = myCon->Map(cBuff, 0, D3D11_MAP_WRITE_DISCARD, 0, &gpuBuffer);
+			*((WVP*)(gpuBuffer.pData)) = MyMatricies;
+			//memcpy(gpuBuffer.pData, &MyMatricies, sizeof(WVP));
+			myCon->Unmap(cBuff, 0);
+
+
+			myCon->DrawIndexedInstanced(ARRAYSIZE(PalmTree_indicies), 2, 0, 0, 0);
+
+			myCon->RSSetViewports(1, &myPort[1]);
+
+
+			myCon->IASetVertexBuffers(0, 1, meshVB, mesh_strides, mesh_offsets);
+			myCon->IASetIndexBuffer(iBuffMesh, DXGI_FORMAT_R32_UINT, 0);
+			myCon->VSSetShader(islandVShader, 0, 0);
+			myCon->PSSetShader(islandPShader, 0, 0);
+			myCon->IASetInputLayout(vMeshLayout);
+			ID3D11ShaderResourceView* newViews[] = { SecondSSRV };
+			myCon->PSSetShaderResources(0, 1, newViews);
+
+
+
+
+
+
+			// modify world matrix before drawing next thing
+			temp = XMMatrixIdentity();
+			XMStoreFloat4x4(&MyMatricies.wMatrix, temp);
+			// send it to the CARD
+			hr = myCon->Map(cBuff, 0, D3D11_MAP_WRITE_DISCARD, 0, &gpuBuffer);
+			*((WVP*)(gpuBuffer.pData)) = MyMatricies;
+			//memcpy(gpuBuffer.pData, &MyMatricies, sizeof(WVP));
+			myCon->Unmap(cBuff, 0);
+
+			myCon->DrawIndexedInstanced(ARRAYSIZE(PlaneWater_indicies), 1, 0, 0, 0);
+
+
+			ID3D11ShaderResourceView* carViews[] = { carSRV };
+			myCon->PSSetShaderResources(0, 1, carViews);
+			ID3D11Buffer* carVB[] = { carVBuff };
+			myCon->IASetVertexBuffers(0, 1, carVB, strides2, offsets2);
+			myCon->IASetIndexBuffer(carIBuff, DXGI_FORMAT_R32_UINT, 0);
+			myCon->VSSetShader(carVShader, 0, 0);
+			myCon->PSSetShader(carPShader, 0, 0);
+			myCon->IASetInputLayout(vMeshLayout);
+			// modify world matrix before drawing next thing
+			temp = XMMatrixIdentity();
+			XMStoreFloat4x4(&MyMatricies.wMatrix, temp);
+			// send it to the CARD
+			hr = myCon->Map(cBuff, 0, D3D11_MAP_WRITE_DISCARD, 0, &gpuBuffer);
+			*((WVP*)(gpuBuffer.pData)) = MyMatricies;
+			//memcpy(gpuBuffer.pDa ta, &MyMatricies, sizeof(WVP));
+			myCon->Unmap(cBuff, 0);
+
+
+			myCon->DrawIndexedInstanced(ARRAYSIZE(Island_indicies), 2, 0, 0, 0);
+
+
+			if (LookFollow)
+				camera = XMMatrixInverse(nullptr, XMMatrixLookAtLH(camera.r[3], triLoc.r[3], { 0,1,0 }));
+
 		mySwap->Present(0, 0);  //can limit framerate and synch with these params
 	}
 	//release all our D3D11 interfaces
@@ -383,7 +550,30 @@ int APIENTRY wWinMain(_In_ HINSTANCE hInstance,
 	pShader->Release();
 	vLayout->Release();
 	myDev->Release();
-
+	vBuffMesh->Release();
+	iBuffMesh->Release();
+	cBuff->Release();
+	vBuffMesh->Release();
+	iBuffMesh->Release();
+	vMeshShader->Release();
+	vMeshLayout->Release();
+	zBuffer->Release();
+	zBufferView->Release();
+	srv->Release();
+	skySRV->Release();
+	skyPShader->Release();
+	skyVShader->Release();
+	treeVBuff->Release();
+	treeIBuff->Release();
+	treeVShader->Release();
+	treePShader->Release();
+	treeSRV->Release();
+	islandVBuff->Release();
+	islandIBuff->Release();
+	islandVShader->Release();
+	islandPShader->Release();
+	islandSRV->Release();
+	SecondSSRV->Release();
 	return (int)msg.wParam;
 }
 
@@ -457,7 +647,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	swap.BufferUsage = DXGI_USAGE_RENDER_TARGET_OUTPUT;
 	swap.SampleDesc.Count = 1;
 
-	aspectRatio = swap.BufferDesc.Width / float(swap.BufferDesc.Height);
+	aspectRatio = (swap.BufferDesc.Width/2) / float(swap.BufferDesc.Height);
 	
 	HRESULT hr;
 	hr = D3D11CreateDeviceAndSwapChain(nullptr, D3D_DRIVER_TYPE_HARDWARE, nullptr, D3D11_CREATE_DEVICE_DEBUG,
@@ -470,12 +660,17 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 
 	backBuffer->Release();
 
-	myPort.Width = swap.BufferDesc.Width;
-	myPort.Height = swap.BufferDesc.Height;
-	myPort.TopLeftX = myPort.TopLeftY = 0;
-	myPort.MinDepth = 0;
-	myPort.MaxDepth = 1;
-
+	myPort[0].Width = swap.BufferDesc.Width/2;
+	myPort[0].Height = swap.BufferDesc.Height;
+	myPort[0].TopLeftX = myPort[0].TopLeftY = 0;
+	myPort[0].MinDepth = 0;
+	myPort[0].MaxDepth = 1;
+	myPort[1].Width = swap.BufferDesc.Width/2;
+	myPort[1].Height = swap.BufferDesc.Height;
+	myPort[1].TopLeftX = myPort[1].TopLeftX = swap.BufferDesc.Width/2;
+	myPort[1].TopLeftY = 0;
+	myPort[1].MinDepth = 0;
+	myPort[1].MaxDepth = 1;
 	MyVertex tri[] = // NDC Normalized Device Coordinates
 	{ // xyzw, rgba
 		// front
@@ -533,6 +728,7 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	bDesc.CPUAccessFlags = D3D11_CPU_ACCESS_WRITE;
 	bDesc.MiscFlags = 0;
 	bDesc.StructureByteStride = 0;
+	subData.pSysMem = 0;
 	bDesc.Usage = D3D11_USAGE_DYNAMIC;
 
 	hr = myDev->CreateBuffer(&bDesc, nullptr, &cBuff);
@@ -540,18 +736,18 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	// load our complex mesh onto the card
 
 	bDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
-	bDesc.ByteWidth = sizeof(StoneHenge_data);
+	bDesc.ByteWidth = sizeof(PlaneWater_data);
 	bDesc.CPUAccessFlags = 0;
 	bDesc.MiscFlags = 0;
 	bDesc.StructureByteStride = 0;
 	bDesc.Usage = D3D11_USAGE_IMMUTABLE;
 
-	subData.pSysMem = StoneHenge_data;
+	subData.pSysMem = PlaneWater_data;
 	hr = myDev->CreateBuffer(&bDesc, &subData, &vBuffMesh); // vertex buffer
 	// index buffer mesh
 	bDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
-	bDesc.ByteWidth = sizeof(StoneHenge_indicies) * 2;
-	subData.pSysMem = StoneHenge_indicies;
+	bDesc.ByteWidth = sizeof(PlaneWater_indicies) * 2;
+	subData.pSysMem = PlaneWater_indicies;
 	hr = myDev->CreateBuffer(&bDesc, &subData, &iBuffMesh);
 	hr = myDev->CreateVertexShader(MyVMeshShader, sizeof(MyVMeshShader), nullptr, &vMeshShader);
 
@@ -574,7 +770,65 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	hr = myDev->CreatePixelShader(MyPSkyShader, sizeof(MyPSkyShader), nullptr, &skyPShader);
 	hr = CreateDDSTextureFromFile(myDev, L"Assets/SkyboxOcean.dds", nullptr, &skySRV);
 	// load our new mesh shader
-	
+	bDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bDesc.ByteWidth = sizeof(Island_data);
+	bDesc.CPUAccessFlags = 0;
+	bDesc.MiscFlags = 0;
+	bDesc.StructureByteStride = 0;
+	bDesc.Usage = D3D11_USAGE_IMMUTABLE;
+
+	subData.pSysMem = Island_data;
+	hr = myDev->CreateBuffer(&bDesc, &subData, &islandVBuff); // vertex buffer
+	// index buffer mesh
+	bDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	bDesc.ByteWidth = sizeof(Island_indicies);
+	subData.pSysMem = Island_indicies;
+	hr = myDev->CreateBuffer(&bDesc, &subData, &islandIBuff);
+	hr = myDev->CreateVertexShader(VertexShader, sizeof(VertexShader), nullptr, &islandVShader);
+	hr = myDev->CreatePixelShader(PixelShader, sizeof(PixelShader), nullptr, &islandPShader);
+	hr = CreateDDSTextureFromFile(myDev, L"Assets/SandSeamless.dds", nullptr, &islandSRV);
+
+
+
+	bDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bDesc.ByteWidth = sizeof(PalmTree_data);
+	bDesc.CPUAccessFlags = 0;
+	bDesc.MiscFlags = 0;
+	bDesc.StructureByteStride = 0;
+	bDesc.Usage = D3D11_USAGE_IMMUTABLE;
+
+	subData.pSysMem = PalmTree_data;
+	hr = myDev->CreateBuffer(&bDesc, &subData, &treeVBuff); // vertex buffer
+	// index buffer mesh
+	bDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	bDesc.ByteWidth = sizeof(PalmTree_indicies);
+	subData.pSysMem = PalmTree_indicies;
+	hr = myDev->CreateBuffer(&bDesc, &subData, &treeIBuff);
+	hr = myDev->CreateVertexShader(TreeVertexShader1, sizeof(TreeVertexShader1), nullptr, &treeVShader);
+	hr = myDev->CreatePixelShader(PixelShader, sizeof(PixelShader), nullptr, &treePShader);
+	hr = CreateDDSTextureFromFile(myDev, L"Assets/palm.dds", nullptr, &treeSRV);
+	hr = CreateDDSTextureFromFile(myDev, L"Assets/SandSeamless.dds", nullptr, &SecondSSRV);
+
+	bDesc.BindFlags = D3D11_BIND_VERTEX_BUFFER;
+	bDesc.ByteWidth = sizeof(Car_data);
+	bDesc.CPUAccessFlags = 0;
+	bDesc.MiscFlags = 0;
+	bDesc.StructureByteStride = 0;
+	bDesc.Usage = D3D11_USAGE_IMMUTABLE;
+
+	subData.pSysMem = Car_data;
+	hr = myDev->CreateBuffer(&bDesc, &subData, &carVBuff); // vertex buffer
+	// index buffer mesh
+	bDesc.BindFlags = D3D11_BIND_INDEX_BUFFER;
+	bDesc.ByteWidth = sizeof(Car_indicies);
+	subData.pSysMem = Car_indicies;
+	hr = myDev->CreateBuffer(&bDesc, &subData, &carIBuff);
+	hr = myDev->CreateVertexShader(TreeVertexShader1, sizeof(TreeVertexShader1), nullptr, &carVShader);
+	hr = myDev->CreatePixelShader(PixelShader, sizeof(PixelShader), nullptr, &carPShader);
+	hr = CreateDDSTextureFromFile(myDev, L"Assets/carTex.dds", nullptr, &carSRV);
+	hr = CreateDDSTextureFromFile(myDev, L"Assets/SandSeamless.dds", nullptr, &SecondSSRV);
+
+	// load our new mesh shader
 
 	// make matching input layout for mesh vertex
 	D3D11_INPUT_ELEMENT_DESC meshInputDesc[] =
@@ -601,10 +855,15 @@ BOOL InitInstance(HINSTANCE hInstance, int nCmdShow)
 	zDesc.SampleDesc.Count = 1;
 	
 	hr = myDev->CreateTexture2D(&zDesc, nullptr, &zBuffer);
-	hr = CreateDDSTextureFromFile(myDev, L"Assets/Stonehenge.dds", nullptr, &srv);
+	hr = CreateDDSTextureFromFile(myDev, L"Assets/WaterSeamless.dds", nullptr, &srv);
 	
+
+
+
 	CD3D11_SAMPLER_DESC sd = CD3D11_SAMPLER_DESC(CD3D11_DEFAULT());
-	
+	sd.AddressU = D3D11_TEXTURE_ADDRESS_WRAP;
+	sd.AddressV = D3D11_TEXTURE_ADDRESS_WRAP;
+	sd.AddressW = D3D11_TEXTURE_ADDRESS_WRAP;
 	myDev->CreateSamplerState(&sd, &SS);
 	myDev->CreateDepthStencilView(zBuffer, nullptr, &zBufferView);
 

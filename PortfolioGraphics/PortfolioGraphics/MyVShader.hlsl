@@ -18,6 +18,8 @@ struct OutputVertex
 	float3 uvs : UV;
 	float3 nrm : NORM;
 	float4 posL : POS_FOR_LIGHT;
+	float4 t : TIMER;
+	float4 c : CAMERA;
 };
 
 cbuffer SHADER_VARS : register(b0)
@@ -25,6 +27,8 @@ cbuffer SHADER_VARS : register(b0)
 	float4x4 worldMatrix;
 	float4x4 viewMatrix;
 	float4x4 projectionMatrix;
+	float4 time;
+	float4 camPos;
 };
 
 OutputVertex main(InputVertex input)
@@ -32,6 +36,8 @@ OutputVertex main(InputVertex input)
 	OutputVertex output = (OutputVertex)0;
 	output.xyzw = input.xyzw;
 	output.rgba = input.rgba;
+	output.t = time;
+	output.c = camPos;
 	output.uvs = input.xyzw;
 	output.nrm = 0;
 	output.posL = 0;

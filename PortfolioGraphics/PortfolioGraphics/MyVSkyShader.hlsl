@@ -26,12 +26,12 @@ cbuffer SHADER_VARS : register(b0)
 	float4x4 worldMatrix;
 	float4x4 viewMatrix;
 	float4x4 projectionMatrix;
+	float4 time;
 };
 
 OutputVertex main(InputVertex input)
 {
 	
-
 	OutputVertex output = (OutputVertex)0;
 	output.xyzw = float4(input.xyz, 1);
 	output.posL = float4(input.xyz, 1);
